@@ -1,0 +1,31 @@
+{
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "start": "node dist/index.js",
+    "build": "tsup src/index.ts",
+    "dev": "tsup src/index.ts --watch --onSuccess \"cls && node dist/index.js\"",
+    "clean": "rimraf dist"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.10.0",
+    "@total-typescript/ts-reset": "^0.6.1",
+    "@types/express": "^4.17.21",
+    "@types/lodash": "^4.17.7",
+    "@types/node": "^22.5.5",
+    "eslint": "^9.10.0",
+    "globals": "^15.9.0",
+    "rimraf": "^6.0.1",
+    "tsup": "^8.2.4",
+    "typescript": "^5.6.2",
+    "typescript-eslint": "^8.5.0"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "lodash": "^4.17.21",
+    "neverthrow": "^8.0.0",
+    "zod": "^3.23.8"
+  }
+}
