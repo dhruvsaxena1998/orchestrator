@@ -10,11 +10,18 @@ import { API, Step, Workflow } from "../validators/Workflow.validator";
 const apis = APIs();
 
 export type RequestContext = {
-  body: Record<string, unknown>;
-  query: Record<string, unknown>;
-  params: Record<string, unknown>;
-  headers: Record<string, unknown>;
-  response: Record<string, unknown>;
+  body: NodeJS.Dict<unknown>;
+  query: NodeJS.Dict<unknown>;
+  params: NodeJS.Dict<unknown>;
+  headers: NodeJS.Dict<unknown>;
+  response: NodeJS.Dict<unknown>;
+};
+
+export type StepResponse = {
+  status: number;
+  message?: string;
+  error?: string;
+  data?: unknown;
 };
 
 const resolveValue = (key: string, context: RequestContext) => {
@@ -99,6 +106,39 @@ export const processRequest = async (config: AxiosRequestConfig) => {
   }
 };
 
+export const getAPIBySlug = (slug: string) => {
+  const api = apis.find((x) => x.slug === slug);
+
+  if (!api) {
+    return err("API not found");
+  }
+
+  return ok(api);
+};
+
+const _setStepResponse = (
+  ctx: RequestContext,
+  slug: string,
+  response: StepResponse
+) => {
+  ctx.response[slug] = response;
+};
+
+const _getNextStep = (
+  workflow: Workflow,
+  currentStep: Step,
+  event: "on_success" | "on_failure"
+): Step | undefined => {
+  const nextStep = currentStep[event];
+  if (nextStep.next === "complete" || nextStep.next === "error") {
+    return undefined;
+  }
+
+  if (nextStep.next === "step") {
+    return workflow.steps.find((x) => x.slug === nextStep.slug);
+  }
+};
+
 export const processWorkflow = async (
   workflow: Workflow,
   initialContext: RequestContext
@@ -107,30 +147,41 @@ export const processWorkflow = async (
   let currentStep: Step | undefined = workflow.steps[0];
 
   while (currentStep) {
-    const api = apis.find((x) => x.slug === currentStep?.api);
-    if (!api) {
-      context.response[currentStep.slug] = {
+    const api = getAPIBySlug(currentStep?.api);
+    if (api.isErr()) {
+      _setStepResponse(context, currentStep.slug, {
         status: 404,
         message: "API not found",
-      };
+      });
       continue;
     }
-    const request = buildRequest(api, context);
+
+    const request = buildRequest(api.value, context);
     if (request.isErr()) {
-      context.response[currentStep.slug] = {
+      _setStepResponse(context, currentStep.slug, {
         status: 400,
         message: "Invalid request",
         error: request.error,
-      };
+      });
+
       continue;
     }
 
     const result = await processRequest(request.value);
-
     if (result.isErr()) {
+      _setStepResponse(context, currentStep.slug, {
+        status: 500,
+        message: "Error processing request",
+        error: result.error,
+      });
+
+      currentStep = _getNextStep(workflow, currentStep, "on_failure");
       continue;
     }
 
-    context.response[currentStep.slug] = result.value;
+    _setStepResponse(context, currentStep.slug, result.value);
+    currentStep = _getNextStep(workflow, currentStep, "on_success");
   }
+
+  return context;
 };

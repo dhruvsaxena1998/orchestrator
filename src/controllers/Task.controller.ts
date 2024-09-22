@@ -3,16 +3,10 @@ import { Router } from "express";
 const router = Router();
 
 import Workflows from "../assets/workflow";
-import APIs from "../assets/api";
 
-import {
-  buildRequest,
-  processRequest,
-  RequestContext,
-} from "../services/Task.service";
+import { processWorkflow, RequestContext } from "../services/Task.service";
 
 const workflows = Workflows();
-const apis = APIs();
 
 router.post("/:version/:slug", async (req, res) => {
   const workflow = workflows.find(
@@ -36,42 +30,11 @@ router.post("/:version/:slug", async (req, res) => {
     response: {},
   };
 
-  for (const step of workflow.steps) {
-    const api = apis.find((x) => x.slug === step.api);
-    if (!api) {
-      context.response[step.slug] = {
-        status: 404,
-        message: "API not found",
-      };
-      continue;
-    }
-
-    const request = buildRequest(api, context);
-    if (request.isErr()) {
-      context.response[step.slug] = {
-        status: 400,
-        message: "Invalid request",
-        error: request.error,
-      };
-      continue;
-    }
-
-    const result = await processRequest(request.value);
-    if (result.isErr()) {
-      context.response[step.slug] = {
-        status: 500,
-        message: "Error processing request",
-        error: result.error,
-      };
-      continue;
-    }
-
-    context.response[step.slug] = result.value;
-  }
+  const result = await processWorkflow(workflow, context);
 
   res.send({
     status: 200,
-    response: context.response,
+    response: result.response,
   });
 });
 
